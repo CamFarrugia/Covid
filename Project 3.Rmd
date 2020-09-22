@@ -1,0 +1,102 @@
+---
+title: "Project 3"
+author: "Cameron Farrugia"
+date: "5/6/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require("COVID19")
+require(dplyr)
+require(ggplot2)
+library(tidyverse)
+library(forecast)
+library(cowplot)
+```
+
+## Project 3
+
+I left off project 2 with some simple analysis of the data. Looking at the data again I think it would be most benefical to try to implement time series analysis to best predict the trend of covid in Italy.
+
+```{r}
+covid=covid19("ITA", level = 2)
+str(covid)
+```
+
+```{r}
+covid1<- covid %>% filter(state=="Abruzzo")
+ggplot(covid1, aes(x=date, y=confirmed))+geom_point()
+```
+
+This graph can be misleading because this is Cumulative data, so I decided to break it down into daily confirmed cases. I also decided to change my focus to the state of Lombardia because it had the largest amount of cases. 
+
+It was easiest to create a new column in Excel to make a daily confirmed cases column.
+
+```{r}
+covid<-read.csv("covidOG.csv")
+covid1<- covid %>% filter(state=="Lombardia")
+ggplot(covid1, aes(x=date, y=Daily_confirmed))+geom_point()+geom_smooth()
+
+```
+
+It looks like there is a spike in March and it drops off more in April and is somewhat steady. Let's see if I can produce a time series model that can predict future daily confirmed correctly.
+
+```{r}
+daily_confirmed_ts<-ts(covid1$Daily_confirmed, frequency = 7)
+```
+
+```{r}
+fit <- ets(covid1$Daily_confirmed)
+fc <- forecast(fit)
+plot(fc)
+summary(fc)
+```
+
+The forecast predicts the next 10 days of the daily confirmed cases. Luckily this data set is updated daily and I am able to compare results by looking at the new data. I did this by getting the new data set and modifying the Excel file to have the daily confirmed column as I did with the original.
+
+```{r}
+covid2<-read.csv("covidNew.csv")
+covid3<- covid2 %>% filter(state=="Lombardia")
+ggplot(covid3, aes(x=date, y=daily_confirmed))+geom_point()+geom_smooth()
+newCovid<-ggplot(covid3, aes(x=date, y=daily_confirmed))+geom_point()+geom_smooth()
+daily_confirmed_ts_new<-ts(covid3$daily_confirmed, frequency = 7)
+```
+
+Since I am not entirely sure how to compare the forecasted and the actual data, I manually looked at the predicted and the real. Although the numbers were a bit off the numbers were within the confidence intervals which is good to see. 
+
+
+
+
+My hope was to try to find out MSE which is very high for this. So either I wasn't quite able to get it correctly or it is just very unpredictable. This MSE is very close to the forecasted model as well though, so that is good to see that they are close.
+
+```{r}
+daily_confirmed_ts %>% tsCV(forecastfunction=rwf, drift=TRUE, h=1) -> e
+e^2 %>% mean(na.rm=TRUE) %>% sqrt()
+
+sqrt(mean(residuals(rwf(daily_confirmed_ts, drift=TRUE))^2, na.rm=TRUE))
+```
+
+
+
+# Figuring out test error
+
+My original thought was to just compare the new and old data, but it occured to me that I may know how to find test error for linear models, but I don't know how for time series. If I found a way to do it I would have used the old covid dataset as the training set and used the new one from the day after the old one ended to test it. The manual assessment was able to tell me that it was within the ranges predicted, but not quite accurate to the actual values predicted. 
+
+# Subsetting time series
+
+My thought on how to subset the data is in the code below.
+
+```{r}
+traints<-subset(daily_confirmed_ts, start=length(daily_confirmed_ts))
+testts<-subset(daily_confirmed_ts_new, start=length(daily_confirmed_ts_new)-length(daily_confirmed_ts))
+
+```
+
+# Conclusion
+
+I decided to use a time series approach to this problem because we are trying to predict future events based on past information. I did not want to use a linear model for this problem for many reasons.
+One reason was because trying a linear model produced a not accurate result which makes sense because pandemics rise and fall in more of a curved pattern. That is why I decided time series was the best approach. 
+Time series forecasting is a good apporach because as was shown in a graph eariler it shows confidence intervals. The reason this is important is because it is clear to see that the trend of the virus is very hard to predict and although the time series model isn't perfect at predicting the actual amounts the actual was still within the confidence intervals. It is more realistic to know the upper and lower bounds of the possible outcomes than it is to know the exact statistics with something as unpredictable as this.
+Since the dataset was designed the way it was where their wasn't many good predictor canidates, I think time series was the best option. My analysis explored just the trend of daily cases and tried to predict roughly the amount of daily cases going forward. I think that considering the dataset and the approach I took that the model is decent at showing at least the trend of potential future results.
+I really liked the forecasting graph that was produced showing the predicted line and confidence intervals, time series was brand new for me and I had to teach myself as I went. I know I didn't quite get everything I was looking for done, but it is a tool I hope to try to perfect in the future.

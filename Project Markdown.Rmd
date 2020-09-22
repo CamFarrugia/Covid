@@ -1,0 +1,67 @@
+---
+title: "Project 2"
+author: "Cameron Farrugia"
+date: "4/21/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+require("COVID19")
+require(dplyr)
+require(ggplot2)
+require(tidyverse)
+```
+
+
+Making state a Factor because I want to group by that variable
+```{r}
+covid=covid19("ITA", level = 2)
+# write.csv(covid, file="C:/Users/camer/Desktop/DAT512 Stat Big Data/covidOG.csv")
+str(covid)
+covid$state=factor(covid$state)
+
+```
+
+Since the data is cumulative I want to eliminate all the entries that arn't the most recent data.
+```{r}
+# Filter to show the most recent data since it is cumlative. 
+covid2=covid
+covid2=covid2 %>% 
+  filter(date == "2020-04-20")
+```
+
+Adding in some useful columns and making one a categorical variable
+```{r}
+covid2=covid2 %>% group_by(state) %>% mutate(recover_rate=recovered/confirmed, Population_category=pop_density)
+covid2$Population_category= cut(covid2$Population_category, breaks=c(0,150,300,1000), labels=c("low", "medium", "high"))
+
+
+```
+
+Shwoing recovery rate based on population area. More factors go into why it shows low density having the higher recovery rate, but I thought it was an interesting point to be made.
+```{r}
+covid3=covid2 %>% group_by(Population_category) %>% mutate(recover_rate=mean(recover_rate)) %>% distinct(recover_rate)
+View(covid3)
+ggplot(covid3, aes(x=Population_category, y= recover_rate, fill=Population_category))+geom_col()
+
+```
+
+This shows the percent of overall population in an area that have COVID-19
+```{r}
+covid4= covid2 %>% mutate(percent_infect= confirmed/pop)
+View(covid4)
+ggplot(covid4, aes(x=state, y=percent_infect, fill=state, key=FALSE))+geom_col()
+
+```
+
+First attempted linear model. y= confirmed x1=population, x2=population density, x3=Population Category, x4=tests I included these parameters because they seemed the most likely to affect the number of confirmed cases. 
+```{r}
+model<- lm(confirmed ~ pop+pop_density+Population_category+tests, data=covid4)
+summary(model)
+```
+
+This model isn't very good because the F statistic is pretty low. This maybe because of the dataset size or the predictors just arn't very good at predicting a confirmed case.
